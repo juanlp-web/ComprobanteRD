@@ -103,11 +103,17 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       );
 
       // Usar resolución muy alta para mejor precisión en detección de QR
+      // En iOS, usar bgra8888 para mejor compatibilidad con ML Kit
+      // En Android, yuv420 funciona bien
+      final imageFormat = defaultTargetPlatform == TargetPlatform.iOS
+          ? ImageFormatGroup.bgra8888
+          : ImageFormatGroup.yuv420;
+      
       _cameraController = CameraController(
         camera,
         ResolutionPreset.veryHigh,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
+        imageFormatGroup: imageFormat,
       );
 
       await _cameraController!.initialize();
@@ -251,17 +257,41 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
         }
       }
 
-      // Determinar el formato de imagen según la plataforma
-      // Android usa NV21, iOS usa bgra8888
-      final format = image.format.group == ImageFormatGroup.yuv420
+      // Para iOS, usar bgra8888 que es más compatible
+      // Para Android, usar nv21 cuando es yuv420
+      final isYuv420 = image.format.group == ImageFormatGroup.yuv420;
+      final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+      final format = isYuv420 && isAndroid
           ? InputImageFormat.nv21
           : InputImageFormat.bgra8888;
 
+      // Validar que tenemos datos válidos antes de procesar
+      if (image.planes.isEmpty || image.planes[0].bytes.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[Scanner] Imagen sin datos válidos');
+        }
+        return null;
+      }
+
       final WriteBuffer allBytes = WriteBuffer();
       for (final Plane plane in image.planes) {
+        if (plane.bytes.isEmpty) {
+          if (kDebugMode) {
+            debugPrint('[Scanner] Plano de imagen vacío');
+          }
+          return null;
+        }
         allBytes.putUint8List(plane.bytes);
       }
       final bytes = allBytes.done().buffer.asUint8List();
+
+      // Validar que los bytes no estén vacíos
+      if (bytes.isEmpty) {
+        if (kDebugMode) {
+          debugPrint('[Scanner] Bytes de imagen vacíos');
+        }
+        return null;
+      }
 
       final metadata = InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
@@ -274,9 +304,10 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
         bytes: bytes,
         metadata: metadata,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
       if (kDebugMode) {
-        debugPrint('Error convirtiendo imagen: $e');
+        debugPrint('[Scanner] Error convirtiendo imagen: $e');
+        debugPrint('[Scanner] Stack trace: $stackTrace');
       }
       return null;
     }
@@ -635,11 +666,16 @@ class _ScannerPageState extends ConsumerState<ScannerPage> with WidgetsBindingOb
       if (!mounted) return;
 
       // Crear nuevo controller
+      // En iOS, usar bgra8888 para mejor compatibilidad con ML Kit
+      final imageFormat = defaultTargetPlatform == TargetPlatform.iOS
+          ? ImageFormatGroup.bgra8888
+          : ImageFormatGroup.yuv420;
+      
       _cameraController = CameraController(
         newCamera,
         ResolutionPreset.veryHigh,
         enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.yuv420,
+        imageFormatGroup: imageFormat,
       );
 
       await _cameraController!.initialize();

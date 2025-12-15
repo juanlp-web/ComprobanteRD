@@ -20,8 +20,18 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     debugPrint('Firebase inicializado correctamente');
-  } catch (e) {
-    debugPrint('Error inicializando Firebase: $e');
+  } catch (e, stackTrace) {
+    debugPrint('❌ Error inicializando Firebase: $e');
+    debugPrint('Stack trace: $stackTrace');
+    // Mostrar error más visible en modo debug
+    if (kDebugMode) {
+      debugPrint('═══════════════════════════════════════');
+      debugPrint('⚠️  FIREBASE NO INICIALIZADO');
+      debugPrint('═══════════════════════════════════════');
+      debugPrint('Para iOS: Asegúrate de tener el archivo');
+      debugPrint('GoogleService-Info.plist en ios/Runner/');
+      debugPrint('═══════════════════════════════════════');
+    }
     // Continuar aunque Firebase falle para que el usuario vea el error
   }
   
