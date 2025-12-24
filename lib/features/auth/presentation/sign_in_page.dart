@@ -81,6 +81,10 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     await ref.read(authControllerProvider.notifier).signInWithGoogle();
   }
 
+  Future<void> _signInWithApple() async {
+    await ref.read(authControllerProvider.notifier).signInWithApple();
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<void>>(authControllerProvider, (previous, next) {
@@ -363,13 +367,44 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  OutlinedButton.icon(
+                  OutlinedButton(
                     onPressed:
                         (isLoading || !hasInternet) ? null : _signInWithGoogle,
-                    icon: const Icon(Icons.g_translate),
-                    label: const Text('Continuar con Google'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _GoogleLogo(),
+                        const SizedBox(width: 12),
+                        const Text('Continuar con Google'),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
+                  // Apple Sign In solo disponible en iOS
+                  if (Theme.of(context).platform == TargetPlatform.iOS) ...[
+                    OutlinedButton.icon(
+                      onPressed:
+                          (isLoading || !hasInternet) ? null : _signInWithApple,
+                      icon: const Icon(
+                        Icons.apple,
+                        color: Colors.black,
+                        size: 28,
+                      ),
+                      label: const Text(
+                        'Continuar con Apple',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.black,
+                        side: const BorderSide(color: Colors.black, width: 1.5),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   TextButton(
                     onPressed: isLoading ? null : _toggleMode,
                     child: Text(
@@ -386,6 +421,20 @@ class _SignInPageState extends ConsumerState<SignInPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _GoogleLogo extends StatelessWidget {
+  const _GoogleLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    return Image.asset(
+      'assets/images/google.png',
+      width: 20,
+      height: 20,
+      fit: BoxFit.contain,
     );
   }
 }

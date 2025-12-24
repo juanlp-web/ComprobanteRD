@@ -1,5 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:riverpod/riverpod.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -135,11 +137,110 @@ class AuthRepository {
     return _auth.signInWithCredential(credential);
   }
 
+  Future<UserCredential> signInWithApple() async {
+    // Verificar si Apple Sign In está disponible
+    final isAvailable = await SignInWithApple.isAvailable();
+    if (!isAvailable) {
+      throw FirebaseAuthException(
+        code: 'apple-sign-in-not-available',
+        message: 'Apple Sign In no está disponible en este dispositivo.',
+      );
+    }
+
+    // Solicitar credenciales de Apple
+    final appleCredential = await SignInWithApple.getAppleIDCredential(
+      scopes: [
+        AppleIDAuthorizationScopes.email,
+        AppleIDAuthorizationScopes.fullName,
+      ],
+    );
+
+    // Crear OAuth credential para Firebase
+    final oauthCredential = OAuthProvider("apple.com").credential(
+      idToken: appleCredential.identityToken,
+      accessToken: appleCredential.authorizationCode,
+    );
+
+    // Iniciar sesión con Firebase
+    final userCredential = await _auth.signInWithCredential(oauthCredential);
+
+    // Si el usuario es nuevo y tenemos nombre, actualizarlo
+    if (userCredential.additionalUserInfo?.isNewUser == true) {
+      final displayName = appleCredential.givenName != null ||
+              appleCredential.familyName != null
+          ? '${appleCredential.givenName ?? ''} ${appleCredential.familyName ?? ''}'.trim()
+          : null;
+
+      if (displayName != null && displayName.isNotEmpty) {
+        try {
+          await userCredential.user?.updateDisplayName(displayName);
+          await userCredential.user?.reload();
+        } catch (e) {
+          // Si falla actualizar el displayName, continuar sin error
+        }
+      }
+    }
+
+    return userCredential;
+  }
+
   Future<void> signOut() async {
     await Future.wait([
       _auth.signOut(),
       _googleSignIn.signOut(),
     ]);
+  }
+
+  /// Elimina la cuenta del usuario y todos sus datos de Firebase
+  /// También elimina los datos locales si se proporciona el repositorio
+  Future<void> deleteAccount({Future<void> Function(String userId)? deleteLocalData}) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-user',
+        message: 'No hay un usuario autenticado para eliminar.',
+      );
+    }
+
+    final userId = user.uid;
+
+    try {
+      // 1. Eliminar todos los datos de Firestore del usuario
+      final firestore = FirebaseFirestore.instance;
+      final userInvoicesRef = firestore.collection('users').doc(userId).collection('invoices');
+      
+      // Obtener todos los documentos y eliminarlos
+      final invoicesSnapshot = await userInvoicesRef.get();
+      final batch = firestore.batch();
+      
+      for (final doc in invoicesSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      
+      // Eliminar el documento del usuario también si existe
+      final userDocRef = firestore.collection('users').doc(userId);
+      final userDoc = await userDocRef.get();
+      if (userDoc.exists) {
+        batch.delete(userDocRef);
+      }
+      
+      await batch.commit();
+
+      // 2. Eliminar datos locales si se proporciona la función
+      if (deleteLocalData != null) {
+        await deleteLocalData(userId);
+      }
+
+      // 3. Eliminar la cuenta de Firebase Auth
+      await user.delete();
+    } catch (e) {
+      // Si falla, intentar al menos cerrar sesión
+      await signOut();
+      throw FirebaseAuthException(
+        code: 'account-deletion-failed',
+        message: 'Error al eliminar la cuenta: ${e.toString()}',
+      );
+    }
   }
 }
 

@@ -320,4 +320,10 @@ class InvoiceController extends AsyncNotifier<List<Invoice>> {
           sortOption: sortOption,
         ));
   }
+
+  /// Detiene el servicio de sincronización
+  /// Útil cuando se va a eliminar la cuenta para evitar errores de permisos
+  Future<void> stopSync() async {
+    await _syncService?.stop();
+  }
 }

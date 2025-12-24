@@ -276,6 +276,53 @@ class SettingsPage extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          // Botón de eliminar cuenta al final
+          if (user != null)
+            Card(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                  color: Theme.of(context).colorScheme.error.withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Zona de peligro',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Eliminar tu cuenta es una acción permanente. Se eliminarán todos tus datos, comprobantes y la cuenta de autenticación.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: isSigningOut
+                          ? null
+                          : () => _showDeleteAccountDialog(context, ref),
+                      icon: const Icon(Icons.delete_forever),
+                      label: const Text('Eliminar cuenta permanentemente'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.error,
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.error,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -289,6 +336,129 @@ String _avatarInitialsFor(User user) {
           ? user.email!.trim()
           : 'Tú';
   return source.isNotEmpty ? source.characters.first.toUpperCase() : 'T';
+}
+
+void _showDeleteAccountDialog(BuildContext context, WidgetRef ref) {
+  showDialog(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      title: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: Theme.of(context).colorScheme.error,
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text('Eliminar cuenta'),
+          ),
+        ],
+      ),
+      content: const Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '¿Estás seguro de que deseas eliminar tu cuenta?',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: 16),
+          Text(
+            'Esta acción es permanente e irreversible. Se eliminará:',
+          ),
+          SizedBox(height: 8),
+          Padding(
+            padding: EdgeInsets.only(left: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('• Tu cuenta de autenticación'),
+                Text('• Todos tus comprobantes guardados'),
+                Text('• Todos tus datos sincronizados'),
+                Text('• Todos los datos locales'),
+              ],
+            ),
+          ),
+          SizedBox(height: 16),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Cancelar'),
+        ),
+        _DeleteAccountButton(dialogContext: dialogContext),
+      ],
+    ),
+  );
+}
+
+class _DeleteAccountButton extends ConsumerStatefulWidget {
+  const _DeleteAccountButton({required this.dialogContext});
+
+  final BuildContext dialogContext;
+
+  @override
+  ConsumerState<_DeleteAccountButton> createState() =>
+      _DeleteAccountButtonState();
+}
+
+class _DeleteAccountButtonState
+    extends ConsumerState<_DeleteAccountButton> {
+  bool _isDeleting = false;
+
+  Future<void> _handleDelete() async {
+    setState(() => _isDeleting = true);
+
+    try {
+      await ref.read(authControllerProvider.notifier).deleteAccount();
+      
+      if (widget.dialogContext.mounted) {
+        Navigator.of(widget.dialogContext).pop();
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Cuenta eliminada exitosamente'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() => _isDeleting = false);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al eliminar la cuenta: ${e.toString()}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FilledButton(
+      onPressed: _isDeleting ? null : _handleDelete,
+      style: FilledButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.error,
+        foregroundColor: Theme.of(context).colorScheme.onError,
+      ),
+      child: _isDeleting
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(Colors.white),
+              ),
+            )
+          : const Text('Eliminar cuenta'),
+    );
+  }
 }
 
 class _ThemeColorOption extends StatelessWidget {

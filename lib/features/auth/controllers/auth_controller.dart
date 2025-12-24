@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:riverpod/riverpod.dart';
 
+import '../../invoice/controllers/invoice_controller.dart';
 import '../data/auth_repository.dart';
 
 final authStateChangesProvider = StreamProvider<User?>((ref) {
@@ -53,6 +54,11 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     state = await AsyncValue.guard(_repository.signInWithGoogle);
   }
 
+  Future<void> signInWithApple() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(_repository.signInWithApple);
+  }
+
   Future<void> signOut() async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(_repository.signOut);
@@ -65,6 +71,31 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
 
   Future<void> reloadUser() async {
     await _repository.reloadUser();
+  }
+
+  Future<void> deleteAccount() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      // Detener el servicio de sincronización antes de eliminar la cuenta
+      // para evitar errores de permisos en el stream
+      final invoiceController = _ref.read(invoiceControllerProvider.notifier);
+      await invoiceController.stopSync();
+      
+      // Obtener el repositorio de invoices para eliminar datos locales
+      final invoiceRepository = await _ref.read(invoiceRepositoryProvider.future);
+      final userId = _repository.currentUser?.uid;
+      
+      if (userId == null) {
+        throw FirebaseAuthException(
+          code: 'no-user-id',
+          message: 'No se pudo obtener el ID del usuario.',
+        );
+      }
+      
+      await _repository.deleteAccount(
+        deleteLocalData: (userId) => invoiceRepository.deleteAllUserData(userId),
+      );
+    });
   }
 
   void reset() {
@@ -116,6 +147,16 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
     }
     if (error is GoogleSignInAbortedException) {
       return 'Inicio de sesión cancelado.';
+    }
+    if (error is FirebaseAuthException && error.code == 'apple-sign-in-not-available') {
+      return error.message;
+    }
+    if (error.toString().toLowerCase().contains('apple') ||
+        error.toString().toLowerCase().contains('sign_in_with_apple')) {
+      if (error.toString().toLowerCase().contains('cancel')) {
+        return 'Inicio de sesión con Apple cancelado.';
+      }
+      return 'Error al iniciar sesión con Apple. Verifica tu configuración o intenta nuevamente.';
     }
     final errorString = error.toString().toLowerCase();
     if (errorString.contains('network') ||

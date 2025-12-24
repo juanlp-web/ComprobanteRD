@@ -293,6 +293,25 @@ class InvoiceRepository {
       whereArgs: [remoteId, userId],
     );
   }
+
+  /// Elimina todos los datos locales de un usuario
+  Future<void> deleteAllUserData(String userId) async {
+    final db = _database.database;
+    
+    // Eliminar todos los invoices del usuario
+    await db.delete(
+      Invoice.tableName,
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+    
+    // Eliminar todas las eliminaciones pendientes del usuario
+    await db.delete(
+      'pending_deletions',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+  }
 }
 
 enum SortOption {

@@ -68,7 +68,7 @@ class InvoiceSyncService {
           .listen(
         _applyRemoteSnapshot,
         onError: (error) {
-          // Manejar errores de red silenciosamente
+          // Manejar errores de red y permisos silenciosamente
           final errorString = error.toString().toLowerCase();
           if (errorString.contains('network') ||
               errorString.contains('connection') ||
@@ -79,6 +79,14 @@ class InvoiceSyncService {
               debugPrint('[InvoiceSync] Error de red (ignorado): $error');
             }
             // Detener el stream si no hay conexión
+            stop();
+          } else if (errorString.contains('permission-denied') ||
+              errorString.contains('permission denied')) {
+            // Si hay error de permisos, probablemente el usuario fue eliminado
+            // Detener el stream silenciosamente
+            if (kDebugMode) {
+              debugPrint('[InvoiceSync] Error de permisos (usuario eliminado, deteniendo stream): $error');
+            }
             stop();
           } else {
             if (kDebugMode) {

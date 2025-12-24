@@ -6,6 +6,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'app/app.dart';
+import 'core/config/firebase_options.dart';
 import 'features/ads/interstitial_ad_manager.dart';
 
 Future<void> main() async {
@@ -18,7 +19,9 @@ Future<void> main() async {
   }
   
   try {
-    await Firebase.initializeApp();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
     debugPrint('Firebase inicializado correctamente');
   } catch (e, stackTrace) {
     debugPrint('❌ Error inicializando Firebase: $e');
@@ -28,8 +31,13 @@ Future<void> main() async {
       debugPrint('═══════════════════════════════════════');
       debugPrint('⚠️  FIREBASE NO INICIALIZADO');
       debugPrint('═══════════════════════════════════════');
-      debugPrint('Para iOS: Asegúrate de tener el archivo');
-      debugPrint('GoogleService-Info.plist en ios/Runner/');
+      if (kIsWeb) {
+        debugPrint('Para Web: Verifica la configuración en');
+        debugPrint('lib/core/config/firebase_options.dart');
+      } else {
+        debugPrint('Para iOS: Asegúrate de tener el archivo');
+        debugPrint('GoogleService-Info.plist en ios/Runner/');
+      }
       debugPrint('═══════════════════════════════════════');
     }
     // Continuar aunque Firebase falle para que el usuario vea el error

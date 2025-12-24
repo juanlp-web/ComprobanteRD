@@ -1,0 +1,17 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para la colección de usuarios
+    match /users/{userId} {
+      // Permitir que el usuario autenticado lea, escriba y elimine solo su propio documento
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      
+      // Reglas para las facturas (invoices) del usuario
+      match /invoices/{invoiceId} {
+        // Permitir que el usuario autenticado lea, escriba y elimine solo sus propias facturas
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+  }
+}
+
